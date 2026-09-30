@@ -1,0 +1,41 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: carburant_db
+    environment:
+      POSTGRES_USER: younes
+      POSTGRES_PASSWORD: carburant123
+      POSTGRES_DB: carburant
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U younes -d carburant"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  ingestion:
+    build: .
+    command: python -m ingestion.fetch
+    environment:
+      DB_HOST: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  dashboard:
+    build: .
+    command: python -m streamlit run dashboard/app.py --server.address=0.0.0.0 --server.port=8501 --server.headless=true
+    environment:
+      DB_HOST: postgres
+    ports:
+      - "8501:8501"
+    depends_on:
+      ingestion:
+        condition: service_completed_successfully
+
+volumes:
+  postgres_data:
